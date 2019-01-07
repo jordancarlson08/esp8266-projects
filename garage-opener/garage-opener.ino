@@ -40,7 +40,7 @@ int ReedState = 0;
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-/********************************** START SETUP*****************************************/
+/********************************** START SETUP *****************************************/
 void setup() {
   Serial.begin(115200);
   delay(10);
@@ -51,82 +51,61 @@ void setup() {
 
   readConfig();
 
-  Serial.println(); Serial.println();
-  Serial.print("Connecting to ");
+  setupWifi();
 
-  
-  setup_wifi();
-
-  // force disconnect for testing
-  // WiFi.disconnect();
-
-  WiFiManager wifiManager;
-
-  //set config save notify callback
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-
-  WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqttServer, 40);
-  wifiManager.addParameter(&custom_mqtt_server);
-
-  WiFiManagerParameter custom_mqtt_port("port", "mqtt port", mqttPortString, 6);
-  wifiManager.addParameter(&custom_mqtt_port);
-  
-  WiFiManagerParameter custom_mqtt_user("user", "mqtt user", mqttUser, 20);
-  wifiManager.addParameter(&custom_mqtt_user);
-
-  WiFiManagerParameter custom_mqtt_password("password", "mqtt password", mqttPassword, 30);
-  wifiManager.addParameter(&custom_mqtt_password);
-  
-  if (!wifiManager.autoConnect("SmartGarageAP", "smartgarageap")) {
-    Serial.println("failed to connect and hit timeout");
-    delay(3000);
-    //reset and try again, or maybe put it to deep sleep
-    ESP.reset();
-    delay(5000);
-  }
-
-
-    //read updated parameters
-  strcpy(mqttServer, custom_mqtt_server.getValue());
-  strcpy(mqttPortString, custom_mqtt_port.getValue());
-  strcpy(mqttUser, custom_mqtt_user.getValue());
-  strcpy(mqttPassword, custom_mqtt_password.getValue());
-
-    // Converts the char* to int
-  sscanf(mqttPortString, "%d", &mqttPort);
-
-
+  setConfigValues();
 
   //save the custom parameters to FS
   if (shouldSaveConfig) {
-    Serial.println("saving config");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
-    json["mqtt_server"] = mqttServer;
-    json["mqtt_port"] = mqttPortString;
-    json["mqtt_user"] = mqttUser;
-    json["mqtt_password"] = mqttPassword;
-
-    File configFile = SPIFFS.open("/config.json", "w");
-    if (!configFile) {
-      Serial.println("failed to open config file for writing");
-    }
-
-    json.printTo(Serial);
-    json.printTo(configFile);
-    configFile.close();
-    //end save
+    saveConfig()
   }
-
-
 
   client.setServer(mqttServer, mqttPort);
   client.setCallback(callback);
 
-  Serial.println("Ready");
-  Serial.print("IPess: ");
-  Serial.println(WiFi.localIP());
-  MQTT_connect();
+  mqttConnect();
+}
+
+/********************************** START LOOP *****************************************/
+void loop() {
+  if (!client.connected()) {
+    mqttConnect();
+  }
+  client.loop();
+
+
+  // Get the current state of the Reed switch (HIGH = open)
+  ReedState = digitalRead(REED);
+
+  if (ReedState == HIGH) {
+    client.publish(stateTopic, "STATE_OPEN", true);
+  } else {
+    client.publish(stateTopic, "STATE_CLOSED", true);
+  }
+
+  // The state will be published every loop, use this delay to publish less frequently
+  delay(1000);
+}
+
+
+
+void saveConfig() {
+  Serial.println("saving config");
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+  json["mqtt_server"] = mqttServer;
+  json["mqtt_port"] = mqttPortString;
+  json["mqtt_user"] = mqttUser;
+  json["mqtt_password"] = mqttPassword;
+
+  File configFile = SPIFFS.open("/config.json", "w");
+  if (!configFile) {
+    Serial.println("failed to open config file for writing");
+  }
+
+  json.printTo(Serial);
+  json.printTo(configFile);
+  configFile.close();
 }
 
 void readConfig () {
@@ -172,6 +151,17 @@ void readConfig () {
   //end read
 }
 
+void setConfigValues() {
+      //read updated parameters
+  strcpy(mqttServer, custom_mqtt_server.getValue());
+  strcpy(mqttPortString, custom_mqtt_port.getValue());
+  strcpy(mqttUser, custom_mqtt_user.getValue());
+  strcpy(mqttPassword, custom_mqtt_password.getValue());
+
+    // Converts the char* to int
+  sscanf(mqttPortString, "%d", &mqttPort);
+}
+
 /********************************** WIFI MANAGER SAVE CALLBACK *****************************************/
 void saveConfigCallback () {
   Serial.println("Should save config");
@@ -179,37 +169,45 @@ void saveConfigCallback () {
 }
 
 /********************************** START SETUP WIFI*****************************************/
-void setup_wifi() {
+void setupWifi() {
 
+  Serial.println(); Serial.println();
+  Serial.print("Connecting to ");
+
+  // force disconnect for testing
   // WiFi.disconnect();
-  // WiFiManager wifiManager;
 
-  // //set config save notify callback
-  // wifiManager.setSaveConfigCallback(saveConfigCallback);
+  WiFiManager wifiManager;
 
-  // WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqttServer, 40);
-  // wifiManager.addParameter(&custom_mqtt_server);
+  //set config save notify callback
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
 
-  // WiFiManagerParameter custom_mqtt_port("port", "mqtt port", mqttPortString, 6);
-  // wifiManager.addParameter(&custom_mqtt_port);
+  WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqttServer, 40);
+  wifiManager.addParameter(&custom_mqtt_server);
+
+  WiFiManagerParameter custom_mqtt_port("port", "mqtt port", mqttPortString, 6);
+  wifiManager.addParameter(&custom_mqtt_port);
   
-  // WiFiManagerParameter custom_mqtt_user("user", "mqtt user", mqttUser, 20);
-  // wifiManager.addParameter(&custom_mqtt_user);
+  WiFiManagerParameter custom_mqtt_user("user", "mqtt user", mqttUser, 20);
+  wifiManager.addParameter(&custom_mqtt_user);
 
-  // WiFiManagerParameter custom_mqtt_password("user", "mqtt password", mqttPassword, 30);
-  // wifiManager.addParameter(&custom_mqtt_password);
+  WiFiManagerParameter custom_mqtt_password("password", "mqtt password", mqttPassword, 30);
+  wifiManager.addParameter(&custom_mqtt_password);
   
-  // if (!wifiManager.autoConnect("SmartGarageAP", "smartgarageap")) {
-  //   Serial.println("failed to connect and hit timeout");
-  //   delay(3000);
-  //   //reset and try again, or maybe put it to deep sleep
-  //   ESP.reset();
-  //   delay(5000);
-  // }
+  if (!wifiManager.autoConnect("SmartGarageAP", "smartgarageap")) {
+    Serial.println("failed to connect and hit timeout");
+    delay(3000);
+    //reset and try again, or maybe put it to deep sleep
+    ESP.reset();
+    delay(5000);
+  }
+
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 
-/********************************** START MQTT CALLBACK*****************************************/
+/********************************** MQTT CALLBACK *****************************************/
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -236,36 +234,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
  
 }
 
-
-void loop() {
-  // Ensure the connection to the MQTT server is alive (this will make the first
-  // connection and automatically reconnect when disconnected).  See the MQTT_connect
-  // function definition further below.
-
-  if (!client.connected()) {
-    // reconnect();
-    MQTT_connect();
-    // software_Reset();
-  }
-  client.loop();
-
-
-
-  // Get the current state of the Reed switch (HIGH = open)
-  ReedState = digitalRead(REED);
-
-  if (ReedState == HIGH) {
-    client.publish(stateTopic, "STATE_OPEN", true);
-  } else {
-    client.publish(stateTopic, "STATE_CLOSED", true);
-  }
-
-  delay(1000);
-}
-
-// Function to connect and reconnect as necessary to the MQTT server.
-// Should be called in the loop function and it will take care if connecting.
-void MQTT_connect() {
+void mqttConnect() {
   int retryCount = 0;
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
@@ -292,7 +261,7 @@ void MQTT_connect() {
   if (retryCount >= 3) {
     WiFi.disconnect();
     SPIFFS.format();
-    software_Reset();
+    softwareReset();
   }
 
 }
@@ -308,9 +277,7 @@ void Relay_activate() {
   Serial.println("Relay off");
 }
 
-/****reset***/
-void software_Reset() // Restarts program from beginning but does not reset the peripherals and registers
-{
-Serial.print("resetting");
-ESP.reset(); 
+void softwareReset() {
+  Serial.print("resetting");
+  ESP.reset(); 
 }
