@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.osx": {
+        "PATH": "/Users/jordan/.platformio/penv/bin:/Users/jordan/.platformio/penv:/Users/jordan/development/flutter/bin:/Users/jordan/android/sdk/tools:/Users/jordan/android/sdk/platform-tools::/Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home/bin:/usr/local/opt/nvm/v0.10.48/bin:/usr/local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/jordan/development/kotlin-native/bin",
+        "PLATFORMIO_CALLER": "vscode"
+    }
+}
