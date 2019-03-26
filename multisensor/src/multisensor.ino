@@ -10,11 +10,6 @@
       - Adafruit unified sensor
       - PubSubClient
       - ArduinoJSON
-    
-  UPDATE 16 MAY 2017 by Knutella - Fixed MQTT disconnects when wifi drops by moving around Reconnect and adding a software reset of MCU
-             
-  UPDATE 23 MAY 2017 - The MQTT_MAX_PACKET_SIZE parameter may not be setting appropriately do to a bug in the PubSub library. If the MQTT messages are not being transmitted as expected please you may need to change the MQTT_MAX_PACKET_SIZE parameter in "PubSubClient.h" directly.
-
 */
 
 #include <FS.h>
@@ -29,15 +24,9 @@
 #include <string.h>
 
 
+// Access point will be named "MultiSensorXXXXXX"
+// Password is "multisensor"
 
-/************ WIFI and MQTT INFORMATION (CHANGE THESE FOR YOUR SETUP) ******************/
-//#define wifi_ssid "JAMILY" //type your WIFI information inside the quotes
-//#define wifi_password "chatbooks123"
-
-// #define mqtt_server "home.jordancarlson.me"
-// #define mqtt_user "admin" 
-// #define mqtt_password "63sB2O8DKJmLWNRBqmQX"
-// #define mqtt_port 1883
 
 char mqttServer[40];
 char mqttPortString[6];
@@ -195,11 +184,14 @@ void setup() {
   WiFiManagerParameter custom_mqtt_password("password", "mqtt password", mqttPassword, 30);
   wifiManager.addParameter(&custom_mqtt_password);
 
+  // Orange for AP mode
+  setColor(255,165,0);
+
   if (!wifiManager.autoConnect(sensorName, "multisensor")) {
     Serial.println("failed to connect and hit timeout");
-    delay(3000);
+    flashLED(255, 0, 0, 750, 3);
     //reset and try again, or maybe put it to deep sleep
-    ESP.reset();
+    softwareReset();
     delay(5000);
   }
 
@@ -278,6 +270,7 @@ void setupOTA() {
 
 /********************************** WIFI MANAGER SAVE CALLBACK *****************************************/
 void saveConfigCallback () {
+  flashLED(0, 255, 0, 375, 3);
   Serial.println("Should save config");
   shouldSaveConfig = true;
 }
@@ -377,6 +370,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     Serial.print("Temperature offset to: ");
     Serial.println(tempOffset);
+    flashLED(255, 255, 255, 200, 4);
+
   }
 }
 
@@ -530,11 +525,25 @@ void setColor(int inR, int inG, int inB) {
   Serial.println(inB);
 }
 
+void flashLED(int inR, int inG, int inB, int speed, int count) {
+  for(size_t i = 0; i < count+1; i++) {
+    setColor(inR, inG, inB);
+    delay(speed);
+    setColor(0, 0, 0);
+    delay(speed);
+  }
+}
+
 /********************************** START RECONNECT*****************************************/
 void reconnect() {
-  // Loop until we're reconnected
+  // Loop until we're reconnected or too many retries
+  
+  int retryCount = 0;
+  int retryMax = 5;
+
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
+    flashLED(0, 0, 255, 375, 3);
     // Attempt to connect
     if (client.connect(sensorName, mqttUser, mqttPassword)) {
       Serial.println("connected");
@@ -546,9 +555,23 @@ void reconnect() {
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
+
+      // this will take 2400 millis
+      flashLED(255, 0, 0, 375, 3);
+      // Wait 3 more seconds before retrying
+      delay(3000);
+
+      if (retryCount >= retryMax) {
+        break;
+      }
+      retryCount = retryCount + 1;
     }
+  }
+  if (retryCount >= retryMax) {
+    flashLED(255, 0, 0, 100, 10);
+    // this will activate AP setup mode again.
+    WiFi.disconnect();
+    softwareReset();
   }
 }
 
@@ -567,7 +590,7 @@ void loop() {
   
   if (!client.connected()) {
     // reconnect();
-    software_Reset();
+    softwareReset();
   }
   client.loop();
 
@@ -750,8 +773,8 @@ int calculateVal(int step, int val, int i) {
 }
 
 /****reset***/
-void software_Reset() // Restarts program from beginning but does not reset the peripherals and registers
-{
-Serial.print("resetting");
-ESP.reset(); 
+// Restarts program from beginning but does not reset the peripherals and registers
+void softwareReset() {
+  Serial.print("resetting");
+  ESP.reset(); 
 }
