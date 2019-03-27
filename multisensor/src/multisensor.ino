@@ -548,7 +548,7 @@ void reconnect() {
     if (client.connect(sensorName, mqttUser, mqttPassword)) {
       Serial.println("connected");
       client.subscribe(topicSetFull);
-      client.subscribe(topicOffsetFull);
+      client.subscribe(topicOffsetFull);              
       setColor(0, 0, 0);
       sendState();
     } else {

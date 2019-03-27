@@ -60,7 +60,7 @@ formatedString = formatedString + "\n\n"
 friendlyNameNoSpace = friendlyName.replace(" ", "_").lower()
 
 
-formatedString = formatedString + f'{friendlyNameNoSpace}_multisensor\n\
+formatedString = formatedString + f'{friendlyNameNoSpace}_multisensor:\n\
   name: {friendlyName} Multisensor\n\
   entities:\n\
     - sensor.{friendlyNameNoSpace}_temperature\n\
